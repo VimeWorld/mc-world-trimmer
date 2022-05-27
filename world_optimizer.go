@@ -44,20 +44,17 @@ func (o *WorldOptimizer) checkWorldCandidate(dir string) error {
 
 	levelFound := false
 	regionFound := false
-	uidFound := false
 	for _, file := range readdir {
 		switch file.Name() {
 		case "level.dat":
 			levelFound = true
-		case "uid.dat":
-			uidFound = true
 		case "region":
 			if file.IsDir() {
 				regionFound = true
 			}
 		}
 	}
-	if levelFound && uidFound && regionFound {
+	if levelFound && regionFound {
 		return o.optimize(dir)
 	}
 	return nil
