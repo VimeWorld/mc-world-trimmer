@@ -75,11 +75,18 @@ func (s *DirSource) Save() error {
 		}
 
 		if *overwrite {
+			stat, err := os.Stat(s.dir)
+			if err != nil {
+				return err
+			}
+			mode := stat.Mode()
 			if err := os.RemoveAll(s.dir); err != nil {
 				return err
 			}
-			err = os.Rename(out, s.dir)
-			if err != nil {
+			if err = os.Rename(out, s.dir); err != nil {
+				return err
+			}
+			if err = os.Chmod(s.dir, mode); err != nil {
 				return err
 			}
 			log.Println("Overwrited dir", s.dir)

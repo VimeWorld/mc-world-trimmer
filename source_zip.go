@@ -100,8 +100,15 @@ func (s *ZipSource) Save() error {
 			return err
 		}
 		if *overwrite {
-			err = os.Rename(outFile.Name(), s.file)
+			stat, err := os.Stat(s.file)
 			if err != nil {
+				return err
+			}
+			mode := stat.Mode()
+			if err = os.Rename(outFile.Name(), s.file); err != nil {
+				return err
+			}
+			if err = os.Chmod(s.file, mode); err != nil {
 				return err
 			}
 			log.Println("Saved file", s.file)
