@@ -10,3 +10,5 @@ require (
 )
 
 require golang.org/x/text v0.3.4 // indirect
+
+replace github.com/spf13/afero v1.8.2 => github.com/xtrafrancyz/afero v1.8.3-0.20220527135544-76d71183000e
