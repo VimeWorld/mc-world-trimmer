@@ -5,6 +5,7 @@ import (
 	"log"
 	"math"
 	"path/filepath"
+	"strings"
 
 	"github.com/dustin/go-humanize"
 	"github.com/spf13/afero"
@@ -100,16 +101,27 @@ func (o *WorldOptimizer) optimizeChunks(dir string) error {
 		return err
 	}
 	for _, file := range regionFiles {
+		worldSize += uint64(file.Size())
 		path := filepath.Join(regionDirPath, file.Name())
+		if strings.HasSuffix(path, ".mcr") {
+			if exists, err := afero.Exists(o.fs(), path[:len(path)-4]+".mca"); err != nil {
+				return err
+			} else if !exists {
+				continue
+			}
+			if err := o.fs().Remove(path); err != nil {
+				return err
+			}
+			continue
+		}
 
 		open, err := o.fs().Open(path)
 		if err != nil {
 			return err
 		}
-		worldSize += uint64(file.Size())
 		rg, err := region.Load(open)
 		if err != nil {
-			return err
+			return fmt.Errorf("%s region load: %w", path, err)
 		}
 
 		removedChunks := make(map[int]bool)
@@ -123,9 +135,9 @@ func (o *WorldOptimizer) optimizeChunks(dir string) error {
 
 				var chunk region.Chunk_1_8_8
 				if sector, err := rg.ReadSector(cx, cz); err != nil {
-					return err
+					return fmt.Errorf("%s read sector %d,%d: %w", path, cx, cz, err)
 				} else if err = chunk.Load(sector); err != nil {
-					return err
+					return fmt.Errorf("%s read chunk %d,%d: %w", path, cx, cz, err)
 				}
 
 				numChunks++
@@ -163,9 +175,9 @@ func (o *WorldOptimizer) optimizeChunks(dir string) error {
 
 					if chunk, ok := updatedChunks[cx*1000+cz]; ok {
 						if data, err := chunk.Save(); err != nil {
-							return err
+							return fmt.Errorf("%s write chunk %d,%d: %w", path, cx, cz, err)
 						} else if err := replace.WriteSector(cx, cz, data); err != nil {
-							return err
+							return fmt.Errorf("%s write sector %d,%d: %w", path, cx, cz, err)
 						}
 					} else {
 						sector, _ := rg.ReadSector(cx, cz)
