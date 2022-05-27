@@ -1,0 +1,23 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+mc-world-trimmer
+
+# MacOS
+.DS_Store 
+
+# Test binary, build with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+examples/test/test.go
+examples/genmaps/genmaps
+examples/genmaps/*.png
+data/packetid/generate.go
+.idea/
+.vscode/
