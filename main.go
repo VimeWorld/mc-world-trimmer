@@ -15,6 +15,7 @@ var overwrite = flag.Bool("o", false, "Overwrite original world")
 var suffix = flag.String("s", "_opt", "Suffix for optimized worlds")
 var dryRun = flag.Bool("dry", false, "Dry run (no changes on disk)")
 var verbose = flag.Bool("v", false, "Verbose logging")
+var recursive = flag.Bool("r", false, "Recursive search for worlds")
 
 var foundAny = false
 
@@ -25,8 +26,8 @@ func main() {
 		fmt.Fprintln(w, "Usage:")
 		fmt.Fprintln(w, " ", base, "[options] path")
 		fmt.Fprintln(w, "Examples:")
-		fmt.Fprintln(w, " ", base, "-dry .minecraft/saves")
-		fmt.Fprintln(w, " ", base, "-o .")
+		fmt.Fprintln(w, " ", base, "-r -dry .minecraft/saves")
+		fmt.Fprintln(w, " ", base, "-r -o .")
 		fmt.Fprintln(w, " ", base, "-o world.zip")
 		fmt.Fprintln(w, "Options:")
 		flag.PrintDefaults()
@@ -44,38 +45,41 @@ func main() {
 		return
 	}
 
-	dirsDone := make(map[string]bool)
+	if *recursive {
+		// Find plain directories
+		fs := afero.NewBasePathFs(afero.NewOsFs(), path)
+		plainDirs, err := findWorldDirs(fs)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		dirsDone := make(map[string]bool)
+		for _, dir := range plainDirs {
+			fullPath := filepath.Join(path, dir)
+			if dirsDone[fullPath] {
+				continue
+			}
+			if strings.HasSuffix(dir, *suffix) {
+				log.Println("Skip", dir, "as optimized")
+				continue
+			}
+			dirsDone[fullPath] = true
+			process(NewDirSource(fullPath), false)
+		}
 
-	// Find plain directories
-	fs := afero.NewBasePathFs(afero.NewOsFs(), path)
-	plainDirs, err := findWorldDirs(fs)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	for _, dir := range plainDirs {
-		fullPath := filepath.Join(path, dir)
-		if dirsDone[fullPath] {
-			continue
+		// Find zip files
+		zipFiles, err := findZipFiles(fs)
+		if err != nil {
+			log.Fatalln(err)
 		}
-		if strings.HasSuffix(dir, *suffix) {
-			log.Println("Skip", dir, "as optimized")
-			continue
+		for _, file := range zipFiles {
+			if strings.HasSuffix(file, *suffix+".zip") {
+				log.Println("Skip", file, "as optimized")
+				continue
+			}
+			process(NewZipSource(filepath.Join(path, file)), true)
 		}
-		dirsDone[fullPath] = true
-		process(NewDirSource(fullPath), false)
-	}
-
-	// Find zip files
-	zipFiles, err := findZipFiles(fs)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	for _, file := range zipFiles {
-		if strings.HasSuffix(file, *suffix+".zip") {
-			log.Println("Skip", file, "as optimized")
-			continue
-		}
-		process(NewZipSource(filepath.Join(path, file)), true)
+	} else {
+		process(NewDirSource(path), false)
 	}
 
 	if !foundAny {
