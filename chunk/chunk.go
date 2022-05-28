@@ -1,4 +1,4 @@
-package region
+package chunk
 
 import (
 	"bytes"

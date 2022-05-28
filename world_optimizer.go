@@ -7,9 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Tnze/go-mc/save/region"
 	"github.com/dustin/go-humanize"
 	"github.com/spf13/afero"
-	"mc-world-trimmer/region"
+	"mc-world-trimmer/chunk"
 )
 
 type WorldOptimizer struct {
@@ -114,7 +115,7 @@ func (o *WorldOptimizer) optimizeChunks(dir string) error {
 
 		open, err := o.fs().Open(path)
 		if err != nil {
-			return err
+			return fmt.Errorf("%s region file read: %w", path, err)
 		}
 		rg, err := region.Load(open)
 		if err != nil {
@@ -122,7 +123,7 @@ func (o *WorldOptimizer) optimizeChunks(dir string) error {
 		}
 
 		removedChunks := make(map[int]bool)
-		updatedChunks := make(map[int]*region.Chunk_1_8_8)
+		updatedChunks := make(map[int]*chunk.Chunk_1_8_8)
 		numChunks := 0
 		for cx := 0; cx < 32; cx++ {
 			for cz := 0; cz < 32; cz++ {
@@ -130,22 +131,22 @@ func (o *WorldOptimizer) optimizeChunks(dir string) error {
 					continue
 				}
 
-				var chunk region.Chunk_1_8_8
+				var c chunk.Chunk_1_8_8
 				if sector, err := rg.ReadSector(cx, cz); err != nil {
 					return fmt.Errorf("%s read sector %d,%d: %w", path, cx, cz, err)
-				} else if err = chunk.Load(sector); err != nil {
+				} else if err = c.Load(sector); err != nil {
 					return fmt.Errorf("%s read chunk %d,%d: %w", path, cx, cz, err)
 				}
 
 				numChunks++
 
-				if chunk.IsEmpty() {
+				if c.IsEmpty() {
 					removedChunks[cx*1000+cz] = true
-				} else if chunk.Optimize() {
-					if chunk.IsEmpty() {
+				} else if c.Optimize() {
+					if c.IsEmpty() {
 						removedChunks[cx*1000+cz] = true
 					} else {
-						updatedChunks[cx*1000+cz] = &chunk
+						updatedChunks[cx*1000+cz] = &c
 					}
 				}
 			}
@@ -154,11 +155,11 @@ func (o *WorldOptimizer) optimizeChunks(dir string) error {
 		if len(updatedChunks) > 0 || numChunks > len(removedChunks) && len(removedChunks) > 0 {
 			newFile, err := o.fs().Create(path)
 			if err != nil {
-				return err
+				return fmt.Errorf("%s create file: %w", path, err)
 			}
-			replace, err := region.Create(newFile)
+			replace, err := region.CreateWriter(newFile)
 			if err != nil {
-				return err
+				return fmt.Errorf("%s create region: %w", path, err)
 			}
 
 			for cx := 0; cx < 32; cx++ {
@@ -170,16 +171,17 @@ func (o *WorldOptimizer) optimizeChunks(dir string) error {
 						continue
 					}
 
-					if chunk, ok := updatedChunks[cx*1000+cz]; ok {
-						if data, err := chunk.Save(); err != nil {
+					if c, ok := updatedChunks[cx*1000+cz]; ok {
+						if data, err := c.Save(); err != nil {
 							return fmt.Errorf("%s write chunk %d,%d: %w", path, cx, cz, err)
 						} else if err := replace.WriteSector(cx, cz, data); err != nil {
 							return fmt.Errorf("%s write sector %d,%d: %w", path, cx, cz, err)
 						}
 					} else {
-						sector, _ := rg.ReadSector(cx, cz)
-						if err := replace.WriteSector(cx, cz, sector); err != nil {
-							return err
+						if sector, err := rg.ReadSector(cx, cz); err != nil {
+							return fmt.Errorf("%s read sector %d,%d: %w", path, cx, cz, err)
+						} else if err := replace.WriteSector(cx, cz, sector); err != nil {
+							return fmt.Errorf("%s write sector %d,%d: %w", path, cx, cz, err)
 						}
 					}
 				}
