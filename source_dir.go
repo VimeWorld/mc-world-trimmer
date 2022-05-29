@@ -54,6 +54,9 @@ func (s *DirSource) Save() error {
 		}
 
 		err = afero.Walk(s.overlay, "", func(path string, info fs.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
 			if s.overlay.IsRemoved(path) != nil {
 				return nil
 			}

@@ -7,10 +7,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"mc-world-trimmer/chunk"
+
 	"github.com/Tnze/go-mc/save/region"
 	"github.com/dustin/go-humanize"
 	"github.com/spf13/afero"
-	"mc-world-trimmer/chunk"
 )
 
 type WorldOptimizer struct {
@@ -215,9 +216,6 @@ func (o *WorldOptimizer) optimizeChunks(dir string) error {
 			continue
 		}
 
-		if *verbose {
-			//o.log(dir, file.Name(), "unchanged", humanize.Bytes(uint64(file.Size())))
-		}
 		newWorldSize += uint64(file.Size())
 	}
 

@@ -110,6 +110,9 @@ func process(source Source, recursive bool) {
 func findZipFiles(fs afero.Fs) ([]string, error) {
 	var files []string
 	err := afero.Walk(fs, "", func(path string, f os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
 		if strings.HasSuffix(path, ".zip") {
 			files = append(files, path)
 		}
@@ -121,6 +124,9 @@ func findZipFiles(fs afero.Fs) ([]string, error) {
 func findWorldDirs(fs afero.Fs) ([]string, error) {
 	var files []string
 	err := afero.Walk(fs, "", func(path string, f os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
 		if filepath.Base(path) == "region" && f.IsDir() {
 			files = append(files, filepath.Dir(path))
 		}
