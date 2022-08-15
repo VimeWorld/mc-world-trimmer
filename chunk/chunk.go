@@ -154,6 +154,42 @@ func (c *Chunk_1_8_8) ComputeHeightMap() bool {
 	return changed
 }
 
+func (c *Chunk_1_8_8) ComputeLowMap() []byte {
+	maxY := 0
+	minY := 255
+	for i := range c.Sections {
+		if c.Sections[i].Y > byte(maxY&15) {
+			maxY = int(c.Sections[i].Y)<<4 + 16
+		}
+		if c.Sections[i].Y < byte(minY&15) {
+			minY = int(c.Sections[i].Y) << 4
+		}
+	}
+
+	lowmap := make([]byte, 256+32)
+	for x := 0; x < 16; x++ {
+		for z := 0; z < 16; z++ {
+			blockFound := false
+			for y := minY; y < maxY; y++ {
+				id, _ := c.GetType(x, y, z)
+				if id != 0 {
+					blockFound = true
+					lowmap[z<<4|x] = byte(y)
+					break
+				}
+			}
+			if !blockFound {
+				idx := z<<4 | x
+				lowmap[idx] = 255
+
+				// bloom filter
+				lowmap[256+idx/8] |= 0x80 >> uint(idx%8)
+			}
+		}
+	}
+	return lowmap
+}
+
 func (c *Chunk_1_8_8) GetType(x, y, z int) (int, byte) {
 	if y > 255 {
 		return 0, 0

@@ -17,6 +17,7 @@ var dryRun = flag.Bool("dry", false, "Dry run (no changes on disk)")
 var verbose = flag.Bool("v", false, "Verbose logging")
 var recursive = flag.Bool("r", false, "Recursive search for worlds")
 var heightMap = flag.Bool("hm", false, "Recalculate height maps")
+var lowMap = flag.Bool("lm", false, "Compute low maps")
 
 var foundAny = false
 
@@ -92,6 +93,7 @@ func process(source Source, recursive bool) {
 	optimizer := &WorldOptimizer{
 		Source:            source,
 		ComputeHeightMaps: *heightMap,
+		ComputeLowMaps:    *lowMap,
 	}
 	if err := optimizer.Process(recursive); err != nil {
 		log.Fatalln(err)

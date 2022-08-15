@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
 	"log"
 	"math"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"mc-world-trimmer/chunk"
@@ -18,6 +21,7 @@ type WorldOptimizer struct {
 	Source            Source
 	AnyWorldFound     bool
 	ComputeHeightMaps bool
+	ComputeLowMaps    bool
 }
 
 func (o *WorldOptimizer) Process(recursive bool) error {
@@ -66,7 +70,7 @@ func (o *WorldOptimizer) checkWorldCandidate(dir string) error {
 func (o *WorldOptimizer) optimize(dir string) error {
 	o.AnyWorldFound = true
 	o.log(dir, "optimize...")
-	if err := o.optimizeChunks(dir); err != nil {
+	if err := o.processChunks(dir); err != nil {
 		return err
 	}
 	if err := o.deleteUselessFiles(dir); err != nil {
@@ -88,12 +92,19 @@ func (o *WorldOptimizer) deleteUselessFiles(dir string) error {
 	if err := o.removeFileIfExists(filepath.Join(dir, "session.lock")); err != nil {
 		return err
 	}
+	if !o.ComputeLowMaps {
+		if err := o.removeFileIfExists(filepath.Join(dir, "lowmap.bin")); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
-func (o *WorldOptimizer) optimizeChunks(dir string) error {
+func (o *WorldOptimizer) processChunks(dir string) error {
 	var worldSize uint64
 	var newWorldSize uint64
+
+	lowmaps := make(map[ChunkPos][]byte)
 
 	regionDirPath := filepath.Join(dir, "region")
 	regionFiles, err := afero.ReadDir(o.fs(), regionDirPath)
@@ -124,8 +135,8 @@ func (o *WorldOptimizer) optimizeChunks(dir string) error {
 			return fmt.Errorf("%s region load: %w", path, err)
 		}
 
-		removedChunks := make(map[int]bool)
-		updatedChunks := make(map[int]*chunk.Chunk_1_8_8)
+		removedChunks := make(map[ChunkPos]bool)
+		updatedChunks := make(map[ChunkPos]*chunk.Chunk_1_8_8)
 		numChunks := 0
 		for cx := 0; cx < 32; cx++ {
 			for cz := 0; cz < 32; cz++ {
@@ -144,11 +155,11 @@ func (o *WorldOptimizer) optimizeChunks(dir string) error {
 
 				updated := false
 				if c.IsEmpty() {
-					removedChunks[cx*1000+cz] = true
+					removedChunks[ChunkPos{cx, cz}] = true
 					continue
 				} else if c.Optimize() {
 					if c.IsEmpty() {
-						removedChunks[cx*1000+cz] = true
+						removedChunks[ChunkPos{cx, cz}] = true
 						continue
 					} else {
 						updated = true
@@ -159,8 +170,12 @@ func (o *WorldOptimizer) optimizeChunks(dir string) error {
 					updated = true
 				}
 
+				if o.ComputeLowMaps {
+					lowmaps[ChunkPos{cx, cz}] = c.ComputeLowMap()
+				}
+
 				if updated {
-					updatedChunks[cx*1000+cz] = &c
+					updatedChunks[ChunkPos{cx, cz}] = &c
 				}
 			}
 		}
@@ -180,11 +195,11 @@ func (o *WorldOptimizer) optimizeChunks(dir string) error {
 					if !rg.ExistSector(cx, cz) {
 						continue
 					}
-					if _, ok := removedChunks[cx*1000+cz]; ok {
+					if _, ok := removedChunks[ChunkPos{cx, cz}]; ok {
 						continue
 					}
 
-					if c, ok := updatedChunks[cx*1000+cz]; ok {
+					if c, ok := updatedChunks[ChunkPos{cx, cz}]; ok {
 						if data, err := c.Save(); err != nil {
 							return fmt.Errorf("%s write chunk %d,%d: %w", path, cx, cz, err)
 						} else if err := replace.WriteSector(cx, cz, data); err != nil {
@@ -239,7 +254,53 @@ func (o *WorldOptimizer) optimizeChunks(dir string) error {
 		)
 	}
 
+	if o.ComputeLowMaps {
+		if err = o.saveLowMap(dir, lowmaps); err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+func (o *WorldOptimizer) saveLowMap(dir string, lowmap map[ChunkPos][]byte) error {
+	sorted := make([]ChunkPos, 0, len(lowmap))
+	for pos := range lowmap {
+		sorted = append(sorted, pos)
+	}
+	sort.Slice(sorted, func(i, j int) bool {
+		if sorted[i].Z == sorted[j].Z {
+			return sorted[i].X < sorted[j].X
+		}
+		return sorted[i].Z < sorted[j].Z
+	})
+
+	buf := make([]byte, 0, 4+len(lowmap)*(8+len(lowmap[sorted[0]])))
+	buf = binary.BigEndian.AppendUint32(buf, uint32(len(lowmap)))
+	for _, pos := range sorted {
+		buf = binary.BigEndian.AppendUint32(buf, uint32(pos.X))
+		buf = binary.BigEndian.AppendUint32(buf, uint32(pos.Z))
+	}
+	for _, pos := range sorted {
+		buf = append(buf, lowmap[pos]...)
+	}
+
+	dest := filepath.Join(dir, "lowmap.bin")
+	if ok, err := afero.Exists(o.fs(), dest); ok || err != nil {
+		if err != nil {
+			return err
+		}
+		file, err := afero.ReadFile(o.fs(), dest)
+		if err != nil {
+			return err
+		}
+		// no need to overwrite
+		if bytes.Equal(file, buf) {
+			return nil
+		}
+	}
+
+	return afero.WriteFile(o.fs(), dest, buf, 0644)
 }
 
 func (o *WorldOptimizer) removeDirIfExists(dir string) error {
@@ -268,4 +329,9 @@ func (o *WorldOptimizer) fs() afero.Fs {
 
 func (o *WorldOptimizer) log(args ...string) {
 	log.Println(o.Source.Name(), args)
+}
+
+type ChunkPos struct {
+	X int
+	Z int
 }
