@@ -171,7 +171,7 @@ func (o *WorldOptimizer) processChunks(dir string) error {
 				}
 
 				if o.ComputeLowMaps {
-					lowmaps[ChunkPos{cx, cz}] = c.ComputeLowMap()
+					lowmaps[ChunkPos{int(c.XPos), int(c.ZPos)}] = c.ComputeLowMap()
 				}
 
 				if updated {
