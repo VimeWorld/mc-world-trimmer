@@ -1,6 +1,6 @@
 module mc-world-trimmer
 
-go 1.18
+go 1.19
 
 require (
 	github.com/Tnze/go-mc v1.18.3-0.20220528143224-a67d01b81f0d

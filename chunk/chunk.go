@@ -29,6 +29,8 @@ type Chunk_1_8_8 struct {
 	ZPos             int32 `nbt:"zPos"`
 	Biomes           []byte
 	HeightMap        []int32
+
+	sectionCache []*Section
 }
 
 type Section struct {
@@ -124,6 +126,60 @@ func (c *Chunk_1_8_8) Optimize() bool {
 		c.Sections = append(c.Sections[:i], c.Sections[i+1:]...)
 	}
 	return before != len(c.Sections)
+}
+
+func (c *Chunk_1_8_8) ComputeHeightMap() bool {
+	maxY := 0
+	for i := range c.Sections {
+		if c.Sections[i].Y > byte(maxY&15) {
+			maxY = int(c.Sections[i].Y)<<4 + 16
+		}
+	}
+
+	changed := false
+	for x := 0; x < 16; x++ {
+		for z := 0; z < 16; z++ {
+			for y := maxY; y > 0; y-- {
+				id, _ := c.GetType(x, y-1, z)
+				if !transparent_1_8_8[id] {
+					if c.HeightMap[z<<4|x] != int32(y) {
+						c.HeightMap[z<<4|x] = int32(y)
+						changed = true
+					}
+					break
+				}
+			}
+		}
+	}
+	return changed
+}
+
+func (c *Chunk_1_8_8) GetType(x, y, z int) (int, byte) {
+	if y > 255 {
+		return 0, 0
+	}
+	if c.sectionCache == nil {
+		c.sectionCache = make([]*Section, 16)
+		for i := range c.Sections {
+			c.sectionCache[int(c.Sections[i].Y)] = &c.Sections[i]
+		}
+	}
+	sec := c.sectionCache[y>>4]
+	if sec == nil {
+		return 0, 0
+	}
+	idx := (y&15)<<8 | (z&15)<<4 | (x & 15)
+
+	id := int(sec.Blocks[idx])
+	if sec.Add != nil {
+		id = int(nibbleGet(sec.Add, idx))<<8 | id
+	}
+	data := nibbleGet(sec.Data, idx)
+	return id, data
+}
+
+func nibbleGet(data []byte, idx int) byte {
+	return data[idx>>1] >> ((idx & 1) << 2)
 }
 
 var dummyBytes [1 << 16]byte // 65536

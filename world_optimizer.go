@@ -15,8 +15,9 @@ import (
 )
 
 type WorldOptimizer struct {
-	Source        Source
-	AnyWorldFound bool
+	Source            Source
+	AnyWorldFound     bool
+	ComputeHeightMaps bool
 }
 
 func (o *WorldOptimizer) Process(recursive bool) error {
@@ -141,14 +142,25 @@ func (o *WorldOptimizer) optimizeChunks(dir string) error {
 
 				numChunks++
 
+				updated := false
 				if c.IsEmpty() {
 					removedChunks[cx*1000+cz] = true
+					continue
 				} else if c.Optimize() {
 					if c.IsEmpty() {
 						removedChunks[cx*1000+cz] = true
+						continue
 					} else {
-						updatedChunks[cx*1000+cz] = &c
+						updated = true
 					}
+				}
+
+				if o.ComputeHeightMaps && c.ComputeHeightMap() {
+					updated = true
+				}
+
+				if updated {
+					updatedChunks[cx*1000+cz] = &c
 				}
 			}
 		}

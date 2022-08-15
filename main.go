@@ -16,6 +16,7 @@ var suffix = flag.String("s", "_opt", "Suffix for optimized worlds")
 var dryRun = flag.Bool("dry", false, "Dry run (no changes on disk)")
 var verbose = flag.Bool("v", false, "Verbose logging")
 var recursive = flag.Bool("r", false, "Recursive search for worlds")
+var heightMap = flag.Bool("hm", false, "Recalculate height maps")
 
 var foundAny = false
 
@@ -89,7 +90,8 @@ func main() {
 
 func process(source Source, recursive bool) {
 	optimizer := &WorldOptimizer{
-		Source: source,
+		Source:            source,
+		ComputeHeightMaps: *heightMap,
 	}
 	if err := optimizer.Process(recursive); err != nil {
 		log.Fatalln(err)
