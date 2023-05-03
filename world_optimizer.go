@@ -125,6 +125,9 @@ func (o *WorldOptimizer) processChunks(dir string) error {
 			}
 			continue
 		}
+		if !strings.HasSuffix(path, ".mca") {
+			continue
+		}
 
 		open, err := o.fs().Open(path)
 		if err != nil {

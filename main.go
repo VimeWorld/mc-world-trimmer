@@ -49,7 +49,11 @@ func main() {
 
 	if *recursive {
 		// Find plain directories
-		fs := afero.NewBasePathFs(afero.NewOsFs(), path)
+		abspath, err := filepath.Abs(path)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		fs := afero.NewBasePathFs(afero.NewOsFs(), abspath)
 		plainDirs, err := findWorldDirs(fs)
 		if err != nil {
 			log.Fatalln(err)
@@ -117,6 +121,9 @@ func findZipFiles(fs afero.Fs) ([]string, error) {
 		if err != nil {
 			return err
 		}
+		if f.IsDir() && f.Name() == ".git" {
+			return filepath.SkipDir
+		}
 		if strings.HasSuffix(path, ".zip") {
 			files = append(files, path)
 		}
@@ -130,6 +137,9 @@ func findWorldDirs(fs afero.Fs) ([]string, error) {
 	err := afero.Walk(fs, "", func(path string, f os.FileInfo, err error) error {
 		if err != nil {
 			return err
+		}
+		if f.IsDir() && f.Name() == ".git" {
+			return filepath.SkipDir
 		}
 		if filepath.Base(path) == "region" && f.IsDir() {
 			files = append(files, filepath.Dir(path))
