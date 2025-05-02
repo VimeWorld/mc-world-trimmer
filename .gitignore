@@ -5,6 +5,7 @@
 *.so
 *.dylib
 mc-world-trimmer
+mc-world-trimmer-*
 
 # MacOS
 .DS_Store 
