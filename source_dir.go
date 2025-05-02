@@ -46,7 +46,7 @@ func (s *DirSource) Save() error {
 			if err = os.RemoveAll(out); err != nil {
 				return err
 			}
-			err = os.Mkdir(out, 0666)
+			err = os.Mkdir(out, 0755)
 		}
 		out = filepath.Clean(out)
 		if err != nil {
@@ -63,7 +63,7 @@ func (s *DirSource) Save() error {
 			dest := filepath.Join(out, path)
 			if info.IsDir() {
 				if dest != out {
-					return os.Mkdir(dest, 0666)
+					return os.Mkdir(dest, 0755)
 				}
 				return nil
 			}
@@ -71,7 +71,7 @@ func (s *DirSource) Save() error {
 			if err != nil {
 				return err
 			}
-			return os.WriteFile(dest, file, 0666)
+			return os.WriteFile(dest, file, 0755)
 		})
 		if err != nil {
 			return err
